@@ -1,0 +1,107 @@
+#!/bin/bash
+# BM3 Files functions
+# Written by Amnon Nessim, Flowsoft LTD. amnon@flowsoft.co.il
+#
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : save_mysql_credentials
+Description: Save the mysql credentials
+Arguments  : DB Name, User name, Password
+Returns    : 0 if successful, 1 otherwise
+"
+save_mysql_credentials() {
+	if [ $# -ne 3 ]; then
+		log ERROR Incorrect call to save_mysql_credentials
+		return 0
+	fi
+	if [ "$MYSQL_PASS_FILE" == "" ]; then
+		log WARN MYSQL_PASS_FILE is not set, not saving mysql credentials.
+		return 1
+	fi
+	#if [ ! -f $MYSQL_PASS_FILE ]; then
+	#	log ERROR $MYSQL_PASS_FILE not found
+	#	return 1
+	#fi
+	if [ ! -f $MYSQL_PASS_FILE ]; then
+		touch $MYSQL_PASS_FILE
+	fi
+
+	if [ ! -w $MYSQL_PASS_FILE ]; then
+		log ERROR $MYSQL_PASS_FILE is not writable
+		return 1
+	fi
+	log DEBUG -e grep -q "$1:$2:" $MYSQL_PASS_FILE
+	if [ $? -eq 0 ]; then
+		log DEBUG User already in file, replacing
+		log DEBUG -e sed -i "s/$1:$2:.*/$1:$2:$3/g" $MYSQL_PASS_FILE
+		if [ $? -ne 0 ]; then
+			log ERROR Could not update user $2 for  db $1 in file $MYSQL_PASS_FILE
+			return 1
+		fi
+		log INFO User $2 for DB $1 updated sucessfully
+	else
+		echo "$1:$2:$3" >> $MYSQL_PASS_FILE
+		if [ $? -ne 0 ]; then
+			log ERROR Could not add user $2 for  db $1 in file $MYSQL_PASS_FILE
+			return 1
+		fi
+		log INFO User $2 for DB $1 added sucessfully
+	fi
+		
+
+	return 0
+}
+
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : get_mysql_credentials
+Description: Get the mysql credentials
+Arguments  : DB Name, Optional DB User
+Returns    : 0 if successful, 1 otherwise
+"
+get_mysql_credentials() {
+	if [ $# -lt 1 -o $# -gt 2 ]; then
+		log ERROR Incorrect call to get_mysql_credentials
+		return 0
+	fi
+	if [ "$MYSQL_PASS_FILE" == "" ]; then
+		log ERROR MYSQL_PASS_FILE is not set
+		return 1
+	fi
+	#if [ ! -f $MYSQL_PASS_FILE ]; then
+	#	log ERROR $MYSQL_PASS_FILE not found
+	#	return 1
+	#fi
+
+	if [ ! -r $MYSQL_PASS_FILE ]; then
+		log ERROR $MYSQL_PASS_FILE is not readable
+		return 1
+	fi
+	MYSQL_HOST="localhost"
+	MYSQL_DB="$1"
+	if [ "$2" != "" ]; then
+		log DEBUG -e grep -q "^$1:$2:" $MYSQL_PASS_FILE
+		if [ $? -eq 0 ]; then
+			MYSQL_USER="$2"
+			MYSQL_PASS=`grep "^$1:$2:" $MYSQL_PASS_FILE | head -1 | cut -d":" -f3`
+		else
+			log ERROR "Could not find mysql user $2 for db $1 in file $MYSQL_PASS_FILE"
+			return 1
+		fi
+	else 
+		log DEBUG -e grep -q "^$1:" $MYSQL_PASS_FILE
+		if [ $? -eq 0 ]; then
+			MYSQL_USER=`grep "^$1:" $MYSQL_PASS_FILE | head -1 | cut -d":" -f2`
+			MYSQL_PASS=`grep "^$1:" $MYSQL_PASS_FILE | head -1 | cut -d":" -f3`
+		else
+			log ERROR "Could not find any mysql user for db $1 in file $MYSQL_PASS_FILE"
+			return 1
+		fi
+	fi
+	log DEBUG Got mysql credentials DB: $MYSQL_DB User: $MYSQL_USER Pass: $MYSQL_PASS
+	return 0
+}
+
+

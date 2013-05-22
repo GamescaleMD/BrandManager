@@ -1,0 +1,20 @@
+#installing required packages
+PACKAGES apache2 memcached
+
+#importing games DB reference
+MYSQLCRED games ${NUMERIC_TAG_WITH_US}${BRAND_NAME}_games
+
+#checkout area 51
+SVNCO ${SVN_ROOT}/${SVN_TYPE_FULL}/games ${WWW_DISTRIBUTION_DIR}/area51
+
+#parse config file
+TEMPLATE ${WWW_DISTRIBUTION_DIR}/area51/site.conf.php
+
+#create virtual host
+TEMPLATE ${TEMPLATES_CONFDIR}/vhost.conf.tmpl ${APACHE_CONF_DIR}/${SVN_TYPE_NAME_PREFIX_US}${SVN_TYPE}.${SHORT_HOSTNAME}.${BM_ENV_WITH_DOT}${BRAND_NAME}.${DNS_DOMAIN}.conf
+
+#add DNS
+ADDDNS ${SVN_TYPE_NAME_PREFIX_DOT}${SVN_TYPE}.${SHORT_HOSTNAME}.${BM_ENV_WITH_DOT}${BRAND_NAME}.${DNS_DOMAIN}
+
+RESTART memcached
+RESTART httpd

@@ -1,0 +1,31 @@
+#
+#
+#
+# Run the command common_usage() to get full usage information
+#
+USAGE='
+########################################################################
+#
+# Common Scripting Library
+# A Collection of functions to be used in bash scripts.
+#
+# Written by: Amnon Nessim, amnon@flowsoft.co.il (C) 2008
+#
+########################################################################
+
+
+API functions:
+
+'
+
+COMMON_BASE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+for module in `find $COMMON_BASE -name module_source | sort`; do
+	. $module
+
+done
+common_usage() {
+	cat << EOF
+$USAGE
+EOF
+}

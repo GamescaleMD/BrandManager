@@ -1,0 +1,43 @@
+
+
+
+case `uname` in 
+	Linux) 
+		COMMON_OS=Linux
+		COMMON_LINUX=`lsb_release -si`
+		;;
+	SunOS)  COMMON_OS=Solaris
+		;;
+	*)	COMMON_OS=UNKNOWN
+		echo FATAL: Unknown operating system type `uname`!
+		exit 1
+		;;
+esac
+case `uname -m` in
+i386|i586|i686)
+	COMMON_BITS=32
+	;;
+x86_64|sparc)
+	COMMON_BITS=64
+	;;
+*) COMMON_BITS=UNKNOWN
+	echo WARN: Unknown processor type `uname -p`!
+	;;
+esac
+#if [ $COMMON_OS == Linux ]; then
+#fi
+
+
+USAGE="$USAGE
+
+Function   : print_os
+Description: Print the collected OS information (System type, processor bits)
+Arguments  : none
+"
+
+print_os() {
+	echo System details:
+	echo
+	echo Operating System: $COMMON_OS
+	echo Processor bits: $COMMON_BITS
+}

@@ -1,0 +1,43 @@
+#!/bin/sh
+# This file contains sourcable functions for Dynamic DNS updates
+# Written by Amnon Nessim, Flowsoft LTD., amnon@flowsoft.co.il
+#
+#
+
+
+USAGE="$USAGE
+
+Function   : dns_add_a_record
+Description: Add an A record to the DNS
+Arguments  : 1 - DNS server address, 2 - Name for A record, 3 - IP for A record
+Returns    : 0 on success, error code otherwise
+"
+dns_add_a_record() {
+	if [ $# -ne 3 ]; then
+		log ERROR Incorrect call to dns_add_a_record
+		return 1
+	fi
+	# Requires bind-utils
+	which nsupdate > /dev/null 2>&1
+	if [ $? -ne 0 ]; then
+		log FATAL No nsupdate installed
+		return 1
+	fi
+	DNS_NSUPDATE_TEMP=`mktemp`
+	echo "server $1" >> $DNS_NSUPDATE_TEMP
+	echo "update add $2 86400 A $3" >> $DNS_NSUPDATE_TEMP
+	echo "send" >> $DNS_NSUPDATE_TEMP
+	log DEBUG -e cat $DNS_NSUPDATE_TEMP
+	log DEBUG -e nsupdate $DNS_NSUPDATE_TEMP
+	if [ $? -ne 0 ]; then
+		log ERROR Could not update DNS record $2 in server $1
+		rm -f $DNS_NSUPDATE_TEMP
+		return 1
+	fi
+	rm -f $DNS_NSUPDATE_TEMP
+	if [ $? -ne 0 ]; then
+		log WARN Can not remove temporary file $DNS_NSUPDATE_TEMP
+	fi
+	log INFO updated $2 with IP $3 in server $1
+	return 0
+}

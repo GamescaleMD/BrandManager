@@ -1,0 +1,39 @@
+#!/bin/bash
+# BM3 Components functions
+# Written by Amnon Nessim, Flowsoft LTD. amnon@flowsoft.co.il
+#
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : get_components_list
+Description: Get the list of active componenets and put them in REPLY
+Arguments  : None
+Returns    : 0 if successful, 1 otherwise
+"
+get_components_list() {
+#	if [ $# -lt 1 ]; then
+#		return 0
+#	fi
+	REPLY=""
+	COMP_CONF=`dirname $0`/conf/components
+	REPLY=`find $COMP_CONF -maxdepth 1 -mindepth 1 -type d -not -name ".svn" -exec basename {} \;`
+	return $?
+}
+
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : get_brands_list
+Description: Get the list of active brands and put them in REPLY
+Arguments  : None
+Returns    : 0 if successful, 1 otherwise
+"
+get_brands_list() {
+#	if [ $# -lt 1 ]; then
+#		return 0
+#	fi
+	REPLY=""
+	BRANDS_CONF=`dirname $0`/conf/brands
+	REPLY=`find $BRANDS_CONF -maxdepth 1 -mindepth 1 -type f -exec basename {} \;`
+	return $?
+}

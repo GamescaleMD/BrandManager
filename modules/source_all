@@ -1,0 +1,32 @@
+#
+#
+#
+# Run the command common_usage() to get full usage information
+#
+BM3_MODULES_USAGE='
+########################################################################
+#
+# GameScale Brand Manager 3
+# Modules
+#
+# Written by: Amnon Nessim, amnon@flowsoft.co.il (C) 2012
+#
+########################################################################
+
+
+API functions:
+
+'
+
+BM3_BASE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+
+for module in `find $BM3_BASE -name module_source | sort`; do
+	. $module
+
+done
+bm3_modules_usage() {
+	cat << EOF
+$BM3_MODULES_USAGE
+EOF
+}

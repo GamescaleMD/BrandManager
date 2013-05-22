@@ -1,0 +1,760 @@
+#!/bin/bash
+# BM3 Parser functions
+# Written by Amnon Nessim, Flowsoft LTD. amnon@flowsoft.co.il
+#
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_actions_file
+Description: Parse an action file and run all actions in it
+Arguments  : File to parse
+Returns    : 0 if successful, 1 otherwise
+"
+parse_actions_file() {
+	if [ $# -lt 1 ]; then
+		return 0
+	fi
+	PARSEFILE=$1
+	check_files_exist $PARSEFILE
+	if [ $? -ne 0 ]; then
+		log ERROR Could not find file $PARSEFILE
+		return 1
+	fi
+	cat $PARSEFILE | grep -v "^#" | grep -v '^[[:blank:]]*$' | while read line; do
+		ACTION=`echo $line | cut -d " " -f1`
+		case $ACTION in
+			SVNCO) parse_svn_checkout_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR SVN Checkout action failed
+					return 1
+				fi
+				;;
+			SVNUP) parse_svn_update_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR SVN Update action failed
+					return 1
+				fi
+				;;
+			CREATEDB) parse_createdb_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Create DB action failed
+					return 1
+				fi
+				;;
+			REMOVEDB) parse_removedb_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Remove DB action failed
+					return 1
+				fi
+				;;
+			DBLOADSQL) parse_mysql_load_url_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Load URL to DB action failed
+					return 1
+				fi
+				;;
+			DBLOADTEMPLATE) parse_mysql_load_template_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Load template to DB action failed
+					return 1
+				fi
+				;;
+			TEMPLATE) parse_template_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Template Action Failed
+					return 1
+				fi
+				;;
+			PACKAGES) parse_packages_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Packages action failed
+					return 1
+				fi
+				;;
+			REMOVE) parse_remove_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Remove action failed
+					return 1
+				fi
+				;;
+			MOVE) parse_move_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Move action failed
+					return 1
+				fi
+				;;
+			COPY) parse_copy_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Copy action failed
+					return 1
+				fi
+				;;
+			COPYCONT) parse_copycont_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Copy Cont action failed
+					return 1
+				fi
+				;;
+			DBLOADCSV) parse_load_csv_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Load CSV action failed
+					return 1
+				fi
+				;;
+			OPENZIPURL) parse_open_zip_url_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Open zip action failed
+					return 1
+				fi
+				;;
+			OPENTARURL) parse_open_tar_url_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Open tar action failed
+					return 1
+				fi
+				;;
+			RESTART) parse_restart_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Restart action failed
+					return 1
+				fi
+				;;
+			ADDDNS) parse_adddns_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Add DNS action failed
+					return 1
+				fi
+				;;
+			ECHO) parse_echo_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Echo action failed
+					return 1
+				fi
+				;;
+			MYSQLCRED) parse_mysqlcred_action $line
+				if [ $? -ne 0 ]; then
+					log ERROR Mysqlcred action failed
+					return 1
+				fi
+				;;
+			*) log ERROR Invalid action in config file $ACTION
+			   return 1
+				;;
+		esac
+ 	
+	done
+}
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_adddns_action
+Description: Parse mysql add dns action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_adddns_action() {
+	if [ $# -ne 2 ]; then
+		log ERROR ADDDNS Action requires 1 parameters
+		return 1
+	fi
+	ADDDNS_NAME=$(eval "echo $2")
+	log INFO Adding to DNS server $DNS_SERVER the name $ADDDNS_NAME for IP $LOCAL_IP
+	dns_add_a_record $DNS_SERVER $ADDDNS_NAME $LOCAL_IP
+	if [ $? -ne 0 ]; then
+		log ERROR Add dns failed
+		return 1
+	fi
+	log INFO DNS Successfully updated
+	return 0
+}
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_mysql_load_url_action
+Description: Parse mysql load URL DB action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_mysql_load_url_action() {
+	if [ $# -ne 3 ]; then
+		log ERROR DBLOADSQL Action requires 3 parameters
+		return 1
+	fi
+	DBURLLOAD_DB=$(eval "echo $2")
+	DBURLLOAD_URL=$(eval "echo $3")
+	log INFO Loading to DB $DBURLLOAD_DB  from URL $DBURLLOAD_URL
+	mysql_run_sql_from_url $DBURLLOAD_DB $DBURLLOAD_URL
+	if [ $? -ne 0 ]; then
+		log ERROR Load DB Failed
+		return 1
+	fi
+	log INFO URL Loaded successfully to DB
+	return 0
+}
+
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_load_csv_action
+Description: Parse mysql load csv DB action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_load_csv_action() {
+	if [ $# -lt 4 -o $# -gt 5 ]; then
+		log ERROR DBLOADCSV Action requires 4 or 5 parameters
+		return 1
+	fi
+	DBURLLOADCSV_DB=$(eval "echo $2")
+	DBURLLOADCSV_URL=$(eval "echo $3")
+	DBURLLOADCSV_FIELDS=$(eval "echo $4")
+	if [ ! -z "$5" ]; then
+		DBURLLOADCSV_TABLE=$(eval "echo $5")
+	else
+		DBURLLOADCSV_TABLE=""
+	fi
+		
+
+
+	svn_ls "$DBURLLOADCSV_URL" csv
+	if [ $? -ne 0 ]; then
+		log ERROR Can not svn ls $DBURLLOADCSV_URL
+		return 1
+	fi
+	if [ -z "$SVN_LS_REPLY" ]; then
+		log WARN No csv to parse in $DBURLLOADCSV_URL
+		return 0
+	fi
+	
+	# Check if the source is dir or not
+	echo $DBURLLOADCSV_URL |  grep  -q "\.csv\$"
+	if [ $? -eq 0 ]; then
+		# We are a single file
+		LOAD_CSV_BASE=`dirname $DBURLLOADCSV_URL`
+	else
+		LOAD_CSV_BASE=$DBURLLOADCSV_URL
+	fi
+
+	for csv_load in $SVN_LS_REPLY; do
+		log INFO Loading CSV $LOAD_CSV_BASE/$csv_load to DB $DBURLLOADCSV_DB using fields $DBURLLOADCSV_FIELDS
+		mysql_load_csv_from_url $DBURLLOADCSV_DB $LOAD_CSV_BASE/$csv_load $DBURLLOADCSV_FIELDS $DBURLLOADCSV_TABLE
+		if [ $? -ne 0 ]; then
+			log ERROR Failed to load CSV $LOAD_CSV_BASE/$csv_load to DB $DBURLLOADCSV_DB using fields $DBURLLOADCSV_FIELDS
+			return 1
+		fi
+	done
+	return 0
+}
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_mysql_load_template_action
+Description: Parse mysql load template DB action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_mysql_load_template_action() {
+	if [ $# -ne 3 ]; then
+		log ERROR DBLOADTEMPLATE Action requires 3 parameters
+		return 1
+	fi
+	DBURLLOADTMPL_DB=$(eval "echo $2")
+	DBURLLOADTMPL_TMPL=$(eval "echo $3")
+	TMP_DB_TEMPLATE_FILE=`mktemp`
+	if [ $? -ne 0 ]; then
+		log ERROR Can not create temporary file for template
+		return 1
+	fi
+
+	log INFO Compiling template 
+	compile_template_file $DBURLLOADTMPL_TMPL $TMP_DB_TEMPLATE_FILE
+	if [ $? -ne 0 ]; then
+		log ERROR Compile template of $DBURLLOADTMPL_TMPL to $TMP_DB_TEMPLATE_FILE failed
+		return 1
+	fi
+
+	log INFO Loading to DB $DBURLLOADTMPL_DB  from template $TMP_DB_TEMPLATE_FILE
+	mysql_run_sql_from_url $DBURLLOADTMPL_DB file://${TMP_DB_TEMPLATE_FILE}
+	if [ $? -ne 0 ]; then
+		rm -f $TMP_DB_TEMPLATE_FILE
+		log ERROR Load DB Failed
+		return 1
+	fi
+	rm -f $TMP_DB_TEMPLATE_FILE
+	log INFO URL Loaded successfully to DB
+	return 0
+}
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_createdb_action
+Description: Parse create DB action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_createdb_action() {
+	if [ $# -lt 4 -o $# -gt 5 ]; then
+		log ERROR CREATEDB Action requires 4 or 5 parameters, got $# -$1-$2-$3-$4-$5-$6-$7-
+		return 1
+	fi
+	if [ "$MYSQL_PASS_FILE" != "" -a ! -f "$MYSQL_PASS_FILE" ]; then
+		log INFO Creating $MYSQL_PASS_FILE 
+		touch $MYSQL_PASS_FILE
+	fi
+
+	if [ "$MYSQL_PASS_FILE" != "" -a ! -w "$MYSQL_PASS_FILE" ]; then
+		log ERROR $MYSQL_PASS_FILE not found or not writable
+		return 1
+	fi
+	CREATEDB_PROFILE=$(eval "echo $2")
+	CREATEDB_DB=$(eval "echo $3")
+	CREATEDB_USER=$(eval "echo $4")
+	if [ -z "$5" ]; then
+		generate_random_password 8 0
+		CREATEDB_PASS=$REPLY
+	else
+		CREATEDB_PASS=$(eval "echo $5")
+	fi
+	log INFO Adding DB $CREATEDB_DB user $CREATEDB_USER 
+	log DEBUG Password is $CREATEDB_PASS
+	mysql_add_db $CREATEDB_DB $CREATEDB_USER $CREATEDB_PASS
+	if [ $? -ne 0 ]; then
+		log ERROR Create DB Failed
+		return 1
+	fi
+	log INFO DB Created successfully
+	save_mysql_credentials $CREATEDB_DB $CREATEDB_USER $CREATEDB_PASS
+	if [ $? -ne 0 ]; then
+		log ERROR Could not save mysql credentials
+		return 1
+	fi
+	MYSQL_HOST="localhost"
+	MYSQL_DB="$CREATEDB_DB"
+	MYSQL_USER="$CREATEDB_USER"
+	MYSQL_PASS="$CREATEDB_PASS"
+	eval export ${CREATEDB_PROFILE}_MYSQL_HOST=$MYSQL_HOST
+	TESTVAR="${CREATEDB_PROFILE}_MYSQL_HOST"
+	log DEBUG $TESTVAR is ${!TESTVAR}
+	eval export ${CREATEDB_PROFILE}_MYSQL_DB=$MYSQL_DB
+	TESTVAR="${CREATEDB_PROFILE}_MYSQL_DB"
+	log DEBUG $TESTVAR is ${!TESTVAR}
+	eval export ${CREATEDB_PROFILE}_MYSQL_USER=$MYSQL_USER
+	TESTVAR="${CREATEDB_PROFILE}_MYSQL_USER"
+	log DEBUG $TESTVAR is ${!TESTVAR}
+	eval export ${CREATEDB_PROFILE}_MYSQL_PASS=$MYSQL_PASS
+	TESTVAR="${CREATEDB_PROFILE}_MYSQL_PASS"
+	log DEBUG $TESTVAR is ${!TESTVAR}
+	return 0
+}
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_removedb_action
+Description: Parse remove DB action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_removedb_action() {
+	if [ $# -ne 2 ]; then
+		log ERROR REMOVEDB Action requires 2 parameters
+		return 1
+	fi
+#	if [ "$MYSQL_PASS_FILE" != "" -a ! -w "$MYSQL_PASS_FILE" ]; then
+#		log ERROR $MYSQL_PASS_FILE not found or not writable
+#		return 1
+#	fi
+#	remove_mysql_credentials $REMOVEDB_DB
+#	if [ $? -ne 0 ]; then
+#		log ERROR Could not save mysql credentials
+#		return 1
+#	fi
+	REMOVEDB_DB=$(eval "echo $2")
+	log INFO Removing DB $REMOVEDB_DB
+	mysql_drop_db $REMOVEDB_DB 
+	if [ $? -ne 0 ]; then
+		log ERROR Remove DB Failed
+		return 1
+	fi
+	log INFO DB Remove successfully
+	return 0
+}
+
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_svn_checkout_action()
+Description: Parse svn action file and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_svn_checkout_action() {
+	if [ $# -ne 3 ]; then
+		log ERROR SVNCO Action requires 3 parameters
+		return 1
+	fi
+	SVNCO_URL=$(eval "echo $2")
+	SVNCO_TARGET=$(eval "echo $3")
+	if [ -d $SVNCO_TARGET ]; then
+		log ERROR SVN CO Target already exists. Use update instead.
+		return 1
+	fi
+	log DEBUG Creating directory $SVNCO_TARGET
+	log DEBUG -e mkdir -p $SVNCO_TARGET
+	if [ $? -ne 0 ]; then
+		log ERROR Could not create target directory $SVNCO_TARGET
+		return 1
+	fi
+	
+	log INFO SVN Checkout of $SVNCO_URL to $SVNCO_TARGET
+	svn_checkout $SVNCO_URL $SVNCO_TARGET
+	if [ $? -ne 0 ]; then
+		log ERROR SVN Checkout failed
+		return 1
+	fi
+}
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_svn_update_action()
+Description: Parse svn update action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_svn_update_action() {
+	if [ $# -ne 2 ]; then
+		log ERROR SVNUP Action requires 2 parameters
+		return 1
+	fi
+	SVNUPDATE_DIR=$(eval "echo $2")
+	if [ ! -d $SVNUPDATE_DIR ]; then
+		log ERROR SVNUPDATE Target already does not exist
+		return 1
+	fi
+	
+	log INFO SVN Update of $SVNUPDATE_DIR
+	svn_update $SVNUPDATE_DIR
+	if [ $? -ne 0 ]; then
+		log ERROR SVN Update failed
+		return 1
+	fi
+}
+
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_open_zip_url_action
+Description: Parse open zip action file and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_open_zip_url_action() {
+	if [ $# -ne 3 ]; then
+		log ERROR OPENZIPURL Action requires 3 parameters
+		return 1
+	fi	
+	OPENZIP_SOURCE=$(eval "echo $2")
+	OPENZIP_TARGET=$(eval "echo $3")
+	get_file_from_url $OPENZIP_SOURCE
+	if [ $? -ne 0 ]; then
+		log ERROR Failed to get $OPENZIP_SOURCE
+		return 1
+	fi
+	if [ ! -d $OPENZIP_TARGET ]; then
+		log INFO Creating directory $OPENZIP_TARGET
+		log DEBUG -e mkdir -p $OPENZIP_TARGET
+		if [ $ -ne 0 ]; then
+			log ERROR Failed to create dir $OPENZIP_TARGET
+			return 1
+		fi
+	fi
+
+	log DEBUG -e unzip -d $OPENZIP_TARGET $GET_FILE_FROM_URL_REPLY
+	if [ $? -ne 0 ]; then
+		delete_file_if_temp $GET_FILE_FROM_URL_REPLY
+		log ERROR failed to open tar $GET_FILE_FROM_URL_REPLY
+	fi
+	delete_file_if_temp $GET_FILE_FROM_URL_REPLY
+	return 0
+}
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_open_tar_url_action
+Description: Parse open tar action file and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_open_tar_url_action() {
+	if [ $# -ne 3 ]; then
+		log ERROR OPENTARURL Action requires 3 parameters
+		return 1
+	fi	
+	OPENTAR_SOURCE=$(eval "echo $2")
+	OPENTAR_TARGET=$(eval "echo $3")
+	get_file_from_url $OPENTAR_SOURCE
+	if [ $? -ne 0 ]; then
+		log ERROR Failed to get $OPENTAR_SOURCE
+		return 1
+	fi
+	if [ ! -d $OPENTAR_TARGET ]; then
+		log INFO Creating directory $OPENTAR_TARGET
+		log DEBUG -e mkdir -p $OPENTAR_TARGET
+		if [ $? -ne 0 ]; then
+			log ERROR Failed to create dir $OPENTAR_TARGET
+			return 1
+		fi
+	fi
+
+	log DEBUG -e tar x -C $OPENTAR_TARGET -f $GET_FILE_FROM_URL_REPLY
+	if [ $? -ne 0 ]; then
+		delete_file_if_temp $GET_FILE_FROM_URL_REPLY
+		log ERROR failed to open tar $GET_FILE_FROM_URL_REPLY
+	fi
+	delete_file_if_temp $GET_FILE_FROM_URL_REPLY
+	return 0
+}
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_template_action()
+Description: Parse template action file and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_template_action() {
+	if [ $# -lt 2 -o $# -gt 3 ]; then
+		log ERROR TEMPLATE Action requires 2 or 3 parameters
+		return 1
+	fi	
+	if [ $# -eq 3 ]; then
+		TEMPLATE_SOURCE=$(eval "echo $2")
+		TEMPLATE_TARGET=$(eval "echo $3")
+	else
+		TEMPLATE_TARGET=$(eval "echo $2")
+		TEMPLATE_SOURCE=${TEMPLATE_TARGET}.tmpl
+		log DEBUG -e mv $TEMPLATE_TARGET $TEMPLATE_SOURCE
+		if [ $? -ne 0 ]; then
+			log ERROR Could not prepare template $TEMPLATE_TARGET to $TEMPLATE_SOURCE
+			return 1
+		fi
+	fi
+	compile_template_file $TEMPLATE_SOURCE $TEMPLATE_TARGET
+
+	if [ $? -ne 0 ]; then
+		log ERROR Compile template of $TEMPLATE_SOURCE to $TEMPLATE_SOURCE failed
+		return 1
+	fi
+
+	if [ $# -eq 2 ]; then
+		log DEBUG -e rm -f $TEMPLATE_SOURCE
+		if [ $? -ne 0 ]; then
+			log WARN Failed to remove temporary template $TEMPLATE_SOURCE
+		fi
+	fi
+}
+
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_packages_action()
+Description: Parse packages action file and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_packages_action() {
+	if [ $# -lt 2 ]; then
+		log ERROR PACKAGES Action requires at lest 2 parameters
+		return 1
+	fi	
+	shift
+	PACKSACTION=""
+	while [ ! -z "$1" ]; do
+		PACKSACTION="$(eval echo $1) $PACKSACTION"
+		shift
+	done
+	log INFO Making sure these packages are installed:
+	log INFO $PACKSACTION
+	yum_ensure_package_installed $PACKSACTION
+	if [ $? -ne 0 ]; then
+		log ERROR Packages installation failed
+		return 1
+	fi
+	return 0	
+}
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_remove_action()
+Description: Parse remove action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_remove_action() {
+	if [ $# -ne 2 ]; then
+		log ERROR REMOVE Action requires 2 parameters
+		return 1
+	fi	
+	shift
+	
+
+	# If we have REMOVE_ALLOWED_DIRS then we need to check
+	# if the directories to remove are in the removed allowed.
+	#if [ ! -z "REMOVE_ALLOWED_DIRS" ]; then
+	# TODO: Implment the check
+	#fi
+	REMOVEACTION=""
+	while [ ! -z "$1" ]; do
+		REMOVEACTION="$(eval echo $1) $REMOVEACTION"
+		shift
+	done
+	log INFO Removing $REMOVEACTION
+	log DEBUG -e rm -R $REMOVEACTION
+	if [ $? -ne 0 ]; then
+		log WARN Remove of $REMOVEACTION failed
+	fi
+	return 0	
+}
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_move_action()
+Description: Parse move action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_move_action() {
+	if [ $# -ne 3 ]; then
+		log ERROR MOVE Action requires 3 parameters
+		return 1
+	fi	
+	MOVE_SOURCE=$(eval "echo $2")
+	MOVE_TARGET=$(eval "echo $3")
+	log INFO moving $MOVE_SOURCE to $MOVE_TARGET
+	log DEBUG -e mv $MOVE_SOURCE $MOVE_TARGET
+	if [ $? -ne 0 ]; then
+		log ERROR Move of $MOVE_SOURCE to $MOVE_TARGET failed
+		return 1
+	fi
+	return 0	
+}
+
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_restart_action()
+Description: Parse restart action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_restart_action() {
+	if [ $# -ne 2 ]; then
+		log ERROR RESTART Action requires 2 parameters
+		return 1
+	fi	
+	RESTART_TARGET=$(eval "echo $2")
+	log INFO Restarting $RESTART_TARGET
+	log DEBUG -e service $RESTART_TARGET restart
+	if [ $? -ne 0 ]; then
+		log ERROR Restart of $RESTART_TARGET failed
+		return 1
+	fi
+	return 0	
+}
+
+
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_copy_action()
+Description: Parse copy action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_copy_action() {
+	if [ $# -ne 3 ]; then
+		log ERROR COPY Action requires 3 parameters
+		return 1
+	fi	
+	COPY_SOURCE=$(eval "echo $2")
+	COPY_TARGET=$(eval "echo $3")
+	log INFO copying $COPY_SOURCE to $COPY_TARGET
+	log DEBUG -e cp -a $COPY_SOURCE $COPY_TARGET
+	if [ $? -ne 0 ]; then
+		log ERROR Copy of $COPY_SOURCE to $COPY_TARGET failed
+		return 1
+	fi
+	return 0	
+}
+
+
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_copycont_action()
+Description: Parse copy content action and execute it, copies the content of the source directory.
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_copycont_action() {
+	if [ $# -ne 3 ]; then
+		log ERROR COPY Action requires 3 parameters
+		return 1
+	fi	
+	COPY_SOURCE=$(eval "echo $2")
+	COPY_TARGET=$(eval "echo $3")
+	if [ "$(ls -A ${COPY_SOURCE})" ]; then
+		log INFO copying contents of $COPY_SOURCE to $COPY_TARGET
+		log DEBUG -e cp -a "$COPY_SOURCE/*" $COPY_TARGET
+		if [ $? -ne 0 ]; then
+			log ERROR Copy Contents of $COPY_SOURCE to $COPY_TARGET failed
+			return 1
+		fi
+	else
+		log INFO $COPY_SOURCE is empty, nothing to copy
+	fi
+	return 0	
+}
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_echo_action()
+Description: Parse echo action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_echo_action() {
+	if [ $# -ne 2 ]; then
+		log ERROR ECHO Action requires 2 parameters
+		return 1
+	fi	
+	MESSAGE_ECHO=$(eval "echo $2")
+	log INFO $MESSAGE_ECHO
+	return 0	
+}
+BM3_MODULES_USAGE="$BM3_MODULES_USAGE
+
+Function   : parse_mysqlcred_action()
+Description: Parse mysqlcred action and execute it
+Arguments  : Action to parse and execute
+Returns    : 0 if successful, 1 otherwise
+"
+parse_mysqlcred_action() {
+	if [ $# -lt 3 -o $# -gt 4 ]; then
+		log ERROR MYSQLCRED Action requires 3 or 4 parameters
+		return 1
+	fi	
+	MYSQL_PROFILE=$(eval "echo $2")
+	MYSQL_DB=$(eval "echo $3")
+	MYSQL_USER=$(eval "echo $4")
+	get_mysql_credentials $MYSQL_DB $MYSQL_USER
+	if [ $? -ne 0 ]; then
+		log ERROR Get mysql credentials for DB $MYSQL_DB user $MYSQL_USER failed
+	fi
+	eval export ${MYSQL_PROFILE}_MYSQL_HOST=$MYSQL_HOST
+	TESTVAR="${MYSQL_PROFILE}_MYSQL_HOST"
+	log DEBUG setting mysqlcred $TESTVAR for ${!TESTVAR}
+	eval export ${MYSQL_PROFILE}_MYSQL_DB=$MYSQL_DB
+	TESTVAR="${MYSQL_PROFILE}_MYSQL_DB"
+	log DEBUG setting mysqlcred $TESTVAR for ${!TESTVAR}
+	eval export ${MYSQL_PROFILE}_MYSQL_USER=$MYSQL_USER
+	TESTVAR="${MYSQL_PROFILE}_MYSQL_USER"
+	log DEBUG setting mysqlcred $TESTVAR for ${!TESTVAR}
+	eval export ${MYSQL_PROFILE}_MYSQL_PASS=$MYSQL_PASS
+	TESTVAR="${MYSQL_PROFILE}_MYSQL_PASS"
+	log DEBUG setting mysqlcred $TESTVAR for ${!TESTVAR}
+	return 0	
+}

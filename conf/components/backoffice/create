@@ -1,0 +1,37 @@
+#installing required packages
+PACKAGES apache2 memcached mysql-server
+
+
+#creating backoffice DB
+CREATEDB bo ${NUMERIC_TAG_WITH_US}${BRAND_NAME}_bo ${NUMERIC_TAG_WITH_US}_bo
+
+#importing games DB reference
+MYSQLCRED games ${NUMERIC_TAG_WITH_US}${BRAND_NAME}_games
+
+#get Yii
+OPENTARURL http://svn-master/svn/src/Yii/${YII_VERSION}.tar.gz ${WWW_DISTRIBUTION_DIR}
+MOVE ${WWW_DISTRIBUTION_DIR}/${YII_VERSION} ${WWW_DISTRIBUTION_DIR}/yii
+
+#checkout the BO
+SVNCO ${SVN_ROOT}/${SVN_TYPE_FULL}/bo ${WWW_DISTRIBUTION_DIR}/bo
+COPYCONT ${WWW_DISTRIBUTION_DIR}/bo/protected/config/${BRAND_NAME}/files ${WWW_DISTRIBUTION_DIR}/bo/protected/config
+
+#parse config file
+TEMPLATE ${WWW_DISTRIBUTION_DIR}/bo/protected/config/${BRAND_NAME}/main.${BM_ENV}.conf
+
+#runing SQL scripts
+DBLOADSQL ${NUMERIC_TAG_WITH_US}${BRAND_NAME}_bo file:///${WWW_DISTRIBUTION_DIR}/bo/DB/${BRAND_NAME}/base.sql
+
+# create virtual host
+TEMPLATE ${TEMPLATES_CONFDIR}/vhost.conf.tmpl ${APACHE_CONF_DIR}/${SVN_TYPE_NAME_PREFIX_US}${SVN_TYPE}.${SHORT_HOSTNAME}.${BM_ENV_WITH_DOT}${BRAND_NAME}.${DNS_DOMAIN}.conf
+
+#add DNS
+ADDDNS ${SVN_TYPE_NAME_PREFIX_DOT}${SVN_TYPE}.${SHORT_HOSTNAME}.${BM_ENV_WITH_DOT}${BRAND_NAME}.${DNS_DOMAIN}
+
+
+# TODO: Add cron
+
+RESTART memcached
+RESTART httpd
+
+

@@ -1,0 +1,265 @@
+#!/bin/bash
+# Template functions
+# Copyrights Amnon Nessim, Flowsoft LTD. 2007-2012 amnon@flowsoft.co.il
+#
+
+
+COMMON_TMPL_TOK_START="%"
+COMMON_TMPL_TOK_STOP="@"
+COMMON_TMPL_MAX_LINE=`getconf ARG_MAX`
+MAX_TEMPLATE_TOKEN_SIZE=50
+
+
+yum_ensure_package_installed coreutils
+if [ $? -ne 0 ]; then
+        log FATAL coreutils can not be installed, required by template module
+        exit 1
+fi
+
+#USAGE="$USAGE
+#
+#Function   : compile_template_file
+#Description: Compiles a given template and replaces the token with variables 
+#             by that name
+#Arguments  : Template file, Destination file
+#Returns    : 0 if succesful, 1 otherwise
+#"
+#compile_template_file() {
+#	if [ $# -lt 2 ]; then
+#		return 0
+#	fi
+#	check_files_exist $1
+#	if [ $? -ne 0 ]; then
+#		log ERROR Source template file does not exist
+#		return 1
+#	fi
+#
+#	return 0
+#}
+USAGE="$USAGE
+
+Function   : get_template_line_tokens
+Description: Get all the tokens form a given line into REPLY
+Arguments  : Template file line as a single argument
+Returns    : 0 if succesful, 1 otherwise
+"
+get_template_line_tokens() {
+	if [ $# -lt 1 ]; then
+		return 0
+	fi
+	LINE_LEN=${#1}
+	# log DEBUG Line length is $LINE_LEN
+	if [ $LINE_LEN -lt 2 ]; then
+		# log DEBUG Skipping line "$line" since its too short
+		return 0
+	fi
+	if [ $LINE_LEN -gt $COMMON_TMPL_MAX_LINE ]; then
+		SPLITLINE=$(( $LINE_LEN / 2 ))
+		log DEBUG Line is too long - $LINE_LEN, splitting to 2 lines in $SPLITLINE
+		get_template_line_tokens "${1:0:$(( $SPLITLINE + 1000 ))}"
+		if [ $? -ne 0 ]; then
+			log DEBUG Recevied error from first split
+			return 1;
+		fi
+		log DEBUG Getting second split $SPLITLINE 
+		get_template_line_tokens "${1:$(( $SPLITLINE - 1000 )):$(( $SPLITLINE + 1000 ))}"
+		if [ $? -ne 0 ]; then
+			log DEBUG Recevied error from second split
+			return 1;
+		fi
+		
+		return 0
+	fi
+	#line="$1"
+	#line="` echo $line | sed 's/[^a-zA-Z0-9_@%]//g'`"
+	line="` echo $1 |  tr -cd '[:alnum:][:digit:][:punct:]'`"
+	#log DEBUG parsing line "$line"
+	#x1=`expr index "$line" "$COMMON_TMPL_TOK_START"`
+	#x1a=`expr index "$line" "$COMMON_TMPL_TOK_START"`
+	#x2=`expr index "$line" "$COMMON_TMPL_TOK_STOP"`
+	#log DEBUG x1 = $x1 x2 = $x2
+	#while [ $x1 -gt 0 -a $x2 -gt 0 -a $x2 -gt $x1 ]; do
+	while [ 1 ]; do
+		#log DEBUG Start x1 = $x1 x2 = $x2
+		x2=`expr index "$line" "$COMMON_TMPL_TOK_STOP"`
+		if [ $x2 -eq 0 ]; then
+			return 0
+		fi
+		x1=`expr index "$line" "$COMMON_TMPL_TOK_START"`
+		if [ $x1 -eq 0 -o $x1 -gt $x2 ]; then
+			return 0
+		fi
+		#log DEBUG x1 = $x1 x2 = $x2
+		linetest="$line"
+		# Get the next token and make sure there is no case like aa#a#dd@ - got only the last # for the token
+		while [ $x1 -lt $x2 ]; do
+			x1last=$x1
+			x1=`expr index "${line:$(( $x1  )):$(( ${#line} - $x1 ))}" "$COMMON_TMPL_TOK_START"`
+			x1=$(( $x1 + $x1last ))
+			if [ $x1 -gt $x2 -o $x1 -eq $x1last  ]; then
+				x1=$x1last
+				#log DEBUG Breaking
+				break;
+			fi
+			#log DEBUG Full line "$line"
+			#log DEBUG Checked "${line:$(( $x1 )):$(( ${#line} - $x1 ))}"
+			#log DEBUG Doing another check x1 $x1 x1last $x1last x2 $x2
+		done
+		if [ $(( $x2 - $x1 )) -lt $MAX_TEMPLATE_TOKEN_SIZE ]; then
+			#NEWTOK=${line:$(( $x1 - 1 )):$(( $x2 - $x1 + 1 ))}
+			NEWTOK="${line:$(( $x1  )):$(( $x2 - $x1 -1 ))}"
+			# Check if token already exists
+			#log DEBUG NEWTOK is $NEWTOK
+			toktestfound=0
+			for toktest in $REPLY; do
+				if [ "$NEWTOK" == "$toktest" ]; then
+					toktestfound=1
+					break
+				fi
+			done
+			if [ $toktestfound -eq 0 ]; then
+				REPLY="$REPLY $NEWTOK"
+				#log DEBUG Found new token $NEWTOK on $x1 $x2 line "$line"
+				log DEBUG Found new token $NEWTOK 
+			fi
+		fi
+		line=${line:$(( $x2 )):$(( ${#line} - $x2 + 1 ))}
+		#log DEBUG LINE is now $line
+
+
+
+		#x1=`expr index "$line" "$COMMON_TMPL_TOK_START"`
+		#x2=`expr index "$line" "$COMMON_TMPL_TOK_STOP"`
+		#log DEBUG x1 = $x1 x2 = $x2
+	done
+	#log DEBUG Reply is now  $REPLY
+	return 0
+
+}
+
+USAGE="$USAGE
+
+Function   : get_template_file_tokens
+Description: Get all the tokens form a given template file into REPLY
+Arguments  : Template file
+Returns    : 0 if succesful, 1 otherwise
+"
+get_template_file_tokens() {
+	if [ $# -ne 1 ]; then
+		return 0
+	fi
+	check_files_exist $1
+	if [ $? -ne 0 ]; then
+		log ERROR Source template file does not exist
+		return 1
+	fi
+	REPLY=""
+	while read -r line; do
+		get_template_line_tokens "$line"		
+		#log DEBUG $REPLY
+	done < $1
+
+	return 0
+}
+
+USAGE="$USAGE
+
+Function   : check_template_tokens
+Description: Check if the given tokens are defined
+Arguments  : tokens
+Returns    : 0 if succesful, 1 otherwise
+"
+check_template_tokens() {
+	if [ $# -lt 1 ]; then
+		return 0
+	fi
+
+	while [ ! -z "$1" ]; do
+		# log DEBUG Checking $1
+		THETEST=${!1}
+		if [ ! -n "${!1+x}" ]; then
+			log ERROR Variable $1 is not defined for token
+			return 1
+		fi
+		shift
+	done
+	return 0
+}
+
+
+USAGE="$USAGE
+
+Function   : compile_template_file
+Description: Compile the template file into the target
+Arguments  : Template file, Destination file
+Returns    : 0 if succesful, 1 otherwise
+"
+compile_template_file() {
+	if [ $# -ne 2 ]; then
+		log ERROR Incorrect call to compile_template_file
+		return 1
+	fi
+	get_template_file_tokens $1
+	if [ $? -ne 0 ]; then
+		log ERROR Cant get tokens from file $1
+		return 1
+	fi
+	TOKENS=$REPLY
+
+	if [ "$TOKENS" == "" ]; then
+		# No tokens
+		log WARN File is not a template file, contains no tokens. Just copying.
+		cp $1 $2
+		if [ $? -ne 0 ]; then
+			log ERROR failed to copy $1 to $2
+			return 1
+		fi
+		return 0
+	fi
+
+	check_template_tokens $TOKENS
+	if [ $? -ne 0 ]; then
+		log ERROR Not all tokens in template are valid
+		return 1
+	fi
+	log INFO Tokens are OK, compiling template
+	SEDARG=""
+	for token in $TOKENS; do
+		TOKVALUE=`echo ${!token} |  sed -e 's/\\//\\\\\\\\\//g'`
+		if [ $? -ne 0 ]; then
+			log ERROR Unable to escape $TOKVALUE
+			return 1
+		fi
+		SEDARG="$SEDARG -e \"s/$COMMON_TMPL_TOK_START$token$COMMON_TMPL_TOK_STOP/$TOKVALUE/g\""
+	done
+	log DEBUG SEDARG is $SEDARG
+	log INFO Compiling template $1 to $2
+	eval sed "$SEDARG" $1 > $2
+	if [ $? -ne 0 ]; then
+		log ERROR Compile of template failed
+		return 1
+	fi
+	log INFO Template $1 compiled successfully
+	return 0
+}
+
+USAGE="$USAGE
+
+Function   : define_template_variable
+Description: Define a variable with given value
+Arguments  : Variable name, Value
+Returns    : 0 if succesful, 1 otherwise
+"
+define_template_variable() {
+	if [ $# -ne 2 ]; then
+		log ERROR Incorrect call to define_template_variable
+		return 1
+	fi
+
+	if [ -n "${!1+x}" ]; then
+		log ERROR $1 is already defined
+		return 1
+	fi
+	eval $1=\"$2\"
+	return 0
+}

@@ -1,0 +1,30 @@
+
+#installing required packages
+PACKAGES apache2 memcached mysql-server
+
+#creating wordpress DB
+CREATEDB wp ${SVN_TYPE_NAME_PREFIX_US}${BRAND_NAME}_wp ${SVN_TYPE_NAME_PREFIX_US}wpuser
+
+#checking out wordpress
+SVNCO ${SVN_ROOT}/${SVN_TYPE_FULL}/wp/${BRAND_NAME} ${WWW_DISTRIBUTION_DIR}/wp
+
+#parsing wordpress config file
+TEMPLATE ${WWW_DISTRIBUTION_DIR}/wp/wp-config.php
+
+#parsing GS_core config file
+TEMPLATE ${WWW_DISTRIBUTION_DIR}/wp/wp-content/plugins/GS_core/_GS_config.php
+
+#runing SQL scripts
+DBLOADSQL ${SVN_TYPE_NAME_PREFIX_US}${BRAND_NAME}_wp file:///${WWW_DISTRIBUTION_DIR}/wp/wp-content/plugins/GS_core/db/reset.sql
+DBLOADSQL ${SVN_TYPE_NAME_PREFIX_US}${BRAND_NAME}_wp file:///${WWW_DISTRIBUTION_DIR}/wp/wp-content/plugins/GS_core/db/content.sql
+
+#importing csv languages
+DBLOADCSV ${SVN_TYPE_NAME_PREFIX_US}${BRAND_NAME}_wp ${SVN_ROOT}/${SVN_TYPE_FULL}/wp/${BRAND_NAME}/wp-content/plugins/GS_core/db tag,language,text tblI18n
+
+# Create virtual host
+TEMPLATE ${TEMPLATES_CONFDIR}/vhost.conf.tmpl ${APACHE_CONF_DIR}/${SVN_TYPE_NAME_PREFIX_US}${SVN_TYPE}.${SHORT_HOSTNAME}.${BM_ENV_WITH_DOT}${BRAND_NAME}.${DNS_DOMAIN}.conf
+
+ADDDNS ${SVN_TYPE_NAME_PREFIX_DOT}${SVN_TYPE}.${SHORT_HOSTNAME}.${BM_ENV_WITH_DOT}${BRAND_NAME}.${DNS_DOMAIN}
+
+RESTART memcached
+RESTART apache2

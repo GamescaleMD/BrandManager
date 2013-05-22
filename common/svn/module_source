@@ -1,0 +1,99 @@
+#!/bin/bash
+# SVN functions
+# Copyrights Amnon Nessim, Flowsoft LTD. 2007-2012 amnon@flowsoft.co.il
+#
+
+SVN_EXEC=/usr/bin/svn
+
+check_files_exist $SVN_EXEC
+
+USAGE="$USAGE
+
+Function   : svn_checkout
+Description: Checkout from SVN to destination
+Arguments  : SVN Source, Target directory
+Returns    : 0 If checkout was successful, 1 otherwise
+"
+svn_checkout() {
+	if [ $# -ne 2 ]; then
+		return 0
+	fi
+	SVN_SOURCE=$1
+	SVN_DEST=$2
+	if [ ! -d $SVN_DEST ]; then
+		log INFO Svn destination $SVN_DEST does not exist, creating
+		mkdir -p $SVN_DEST > /dev/null 2>&1
+		if [ $? -ne 0 ]; then
+			log ERROR Coud not create SVN destination dir $SVN_DEST
+			return 1
+		fi
+	fi
+
+	log DEBUG -e $SVN_EXEC --quiet co $SVN_SOURCE $SVN_DEST
+	if [ $? -ne 0 ]; then
+		log ERROR SVN Checkout of $SVN_SOURCE to $SVN_DEST failed
+		return 1
+	fi
+
+	return 0
+}
+
+USAGE="$USAGE
+
+Function   : svn_update
+Description: Update SVN Path
+Arguments  : SVN working copy directory
+Returns    : 0 If checkout was successful, 1 otherwise
+"
+svn_update() {
+	if [ $# -ne 1 ]; then
+		return 0
+	fi
+	SVN_DEST=$1
+	if [ ! -d $SVN_DEST ]; then
+		log ERROR Svn working copy $SVN_DEST does not exist
+		return 1
+	fi
+
+	log DEBUG -e $SVN_EXEC --quiet update $SVN_DEST
+	if [ $? -ne 0 ]; then
+		log ERROR SVN Update of $SVN_DEST failed
+		return 1
+	fi
+
+	return 0
+}
+
+
+USAGE="$USAGE
+
+Function   : svn_ls
+Description: ls SVN Location given a optional extention filter
+Arguments  : SVN Source, extention filter (for example txt, optional)
+Returns    : 0 If checkout was successful, 1 otherwise
+             Stored the result in SVN_LS_REPLY
+"
+svn_ls() {
+	if [ $# -lt 1 -o $# -gt 2 ]; then
+		log ERROR Incorrect call to svn_ls
+		return 1
+	fi
+	SVN_LS_REPLY=`$SVN_EXEC ls $1`
+	if [ $? -ne 0 ]; then
+		log ERROR svn ls failed for $1
+		return 1
+	fi
+	if [ ! -z "$2" ]; then
+		# Check the filter
+		SVN_LS_REPLY_TEMP="$SVN_LS_REPLY"
+		SVN_LS_REPLY=""
+		for svnlsreply in $SVN_LS_REPLY_TEMP; do
+			echo $svnlsreply | grep -q "\.$2\$"
+			if [ $? -eq 0 ]; then
+				SVN_LS_REPLY="$svnlsreply $SVN_LS_REPLY"
+			fi
+		done
+	fi
+	return 0
+
+}

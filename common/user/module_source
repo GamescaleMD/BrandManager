@@ -1,0 +1,110 @@
+#!/bin/sh
+# This file contains sourcable functions for user manipulations and queries.
+# Written by Amnon Nessim, Flowsoft LTD., amnon@flowsoft.co.il
+#
+#
+
+
+
+CRYPT="$COMMON_BASE/user/crypt"
+
+if [ ! -x $CRYPT ]; then
+	echo ERROR: Could not execute $CRYPT!
+	exit 999
+fi
+
+
+
+USAGE="$USAGE
+
+Function   : generate_random_password
+Description: Generate a random password and put it in REPLY
+Arguments  : [ number of characters ], [include sepcial characters - 1 = yes,  -no 
+Returns    : 0 if successful, 1 otherwise
+"
+
+generate_random_password() {
+  [ "$2" == "0" ] && CHAR="[:alnum:]" || CHAR="[:graph:]"
+    REPLY=`cat /dev/urandom | tr -cd "$CHAR" | head -c ${1:-32}`
+    return 0
+}
+
+# Check the running user
+# P1 - User to check
+USAGE="$USAGE
+
+Function   : check_running_user
+Description: Checks what is the current running user
+Arguments  : 1 - user to check
+Returns    : 0 if the current user is the specified user, error code otherwise
+"
+
+check_running_user() {
+	if [ $# -ne 1 ]; then
+		log FATAL Wrong call to check_running_user!
+		return 999
+	fi
+	log DEBUG "Checking if running user is $1... "
+	if [ "`id -un`" != "$1" ]; then
+		log ERROR Must run under user $1!
+		return 1
+	fi
+	log DEBUG "Running user is OK - $1"
+	return 0
+}
+# Example:
+#check_running_user root
+
+
+# Add user
+#1 - user
+#2 - group
+#3 - password
+
+USAGE="$USAGE
+
+Function   : add_user
+Description: Adds a user to the operating system
+Arguments  : 1 - username to add
+             2 - group to add the user to
+             3 - Password for the user
+Returns    : 0 on success, error code otherwise
+"
+
+add_user() {
+if [ $# -ne 3 ]; then
+        log FATAL  Wrong call to add_user!
+        return 999
+fi
+USERADD=$1
+GROUPADD=$2
+PASSADD=$3
+grep "^$GROUPADD:" /etc/group > /dev/null 2>&1
+if [ "$?" -ne 0 ]; then
+        log INFO Adding group $GROUPADD...
+        groupadd $GROUPADD
+        if [ "$?" -ne 0 ]; then
+                log ERROR Can not add group $GROUPADD!
+                exit 1
+        fi
+        log INFO Group $GROUPADD added OK...
+else
+        log WARN Group $GROUPADD already exists.
+fi
+
+grep "^$USERADD:" /etc/passwd > /dev/null 2>&1
+if [ "$?" -ne 0 ]; then
+        log INFO Adding user $USERADD...
+        useradd -g $GROUPADD -c "User $USERADD" -p "`$CRYPT $PASSADD`" $USERADD
+        if [ "$?" -ne 0 ]; then
+                log ERROR  Can not add user $USERADD!
+                return 1
+        fi
+        log INFO User $USERADD added OK
+else
+        log WARN User $USERADD already exists..
+fi
+
+}
+
+

@@ -1,0 +1,24 @@
+#installing required packages
+PACKAGES apache2 mysql-server memcached
+
+#create gs1 DB
+CREATEDB games ${NUMERIC_TAG_WITH_US}${BRAND_NAME}_games ${NUMERIC_TAG_WITH_US}games
+
+
+#checkout gs1
+SVNCO ${SVN_ROOT}/${SVN_TYPE_FULL}/games ${WWW_DISTRIBUTION_DIR}/games
+
+#parse config file
+TEMPLATE ${WWW_DISTRIBUTION_DIR}/games/site.conf.php
+
+#runing SQL scripts
+DBLOADSQL ${NUMERIC_TAG_WITH_US}${BRAND_NAME}_games file:///${WWW_DISTRIBUTION_DIR}/games/db/${BRAND_NAME}/base.sql
+
+#create virtual host
+TEMPLATE ${TEMPLATES_CONFDIR}/vhost.conf.tmpl ${APACHE_CONF_DIR}/${SVN_TYPE_NAME_PREFIX_US}${SVN_TYPE}.${SHORT_HOSTNAME}.${BM_ENV_WITH_DOT}${BRAND_NAME}.${DNS_DOMAIN}.conf
+
+#add DNS
+ADDDNS ${SVN_TYPE_NAME_PREFIX_DOT}${SVN_TYPE}.${SHORT_HOSTNAME}.${BM_ENV_WITH_DOT}${BRAND_NAME}.${DNS_DOMAIN}
+
+RESTART memcached
+

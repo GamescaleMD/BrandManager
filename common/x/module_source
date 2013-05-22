@@ -1,0 +1,29 @@
+#!/bin/sh
+# This file contains sourcable functions for X manipulations and queries.
+# Written by Amnon Nessim, Flowsoft LTD., amnon@flowsoft.co.il
+#
+#
+
+
+USAGE="$USAGE
+
+Function   : check_x
+Description: Check if X is available to display
+Arguments  : none
+Returns    : 0 on success, error code otherwise
+"
+check_x() {
+        log INFO "Checking if X is active..."
+	if [ "$DISPLAY" = "" ]; then
+        	log ERROR DISPLAY not set. Please set DISPLAY to a valid X Server.
+        	return 1
+	fi
+        xhost > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+                log ERROR X is not active!
+                return 2
+        fi
+        log INFO "X tested OK"
+}
+# Example:
+#check_x

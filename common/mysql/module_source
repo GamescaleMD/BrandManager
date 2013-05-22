@@ -1,0 +1,242 @@
+#!/bin/bash
+# MYSQL functions
+# Copyrights Amnon Nessim, Flowsoft LTD. 2007-2012 amnon@flowsoft.co.il
+#
+
+MYSQL_ROOT=""
+MYSQL_EXEC=/usr/bin/mysql
+MYSQLIMPORT_EXEC=/usr/bin/mysqlimport
+
+# Check that mysql is installed
+check_files_exist $MYSQL_EXEC $MYSQLIMPORT_EXEC
+# Make sure the mktemp utility is installed
+#yum_ensure_package_installed mktemp
+if [ $? -ne 0 ]; then
+	log FATAL mktemp can not be installed, required by mysql module
+	exit 1
+fi
+yum_ensure_package_installed wget
+if [ $? -ne 0 ]; then
+	log FATAL wget can not be installed, required by mysql module
+	exit 1
+fi
+#yum_ensure_package_installed dos2unix
+yum_ensure_package_installed tofrodos
+if [ $? -ne 0 ]; then
+	log FATAL tofrodos can not be installed, required by mysql module
+	exit 1
+fi
+
+USAGE="$USAGE
+
+Function   : mysql_check_db_exists
+Description: Check if a DB exists in mysql
+Arguments  : DB Name
+Returns    : 0 If db exists, 1 otherwise
+"
+mysql_check_db_exists() {
+	if [ $# -ne 1 ]; then
+		return 0
+	fi
+	$MYSQL_EXEC $1 -e "\q" > /dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		log INFO DB $1 Exists
+		return 0
+	else
+		log INFO DB $1 does not exist
+		return 1
+	fi
+}
+
+USAGE="$USAGE
+
+Function   : mysql_run_sql_from_url
+Description: Run SQL script from given URL
+Arguments  : DB Name, URL
+Returns    : 0 If successful, 1 otherwise
+"
+mysql_run_sql_from_url() {
+	if [ $# -ne 2 ]; then
+		return 0
+	fi
+	mysql_check_db_exists $1
+	if [ $? -ne 0 ]; then
+		log ERROR DB $1 does not exists
+		return 1
+	fi
+	get_file_from_url $2
+	if [ $? -ne 0 ]; then
+		log ERROR Can not get file from $2
+		return 1
+	fi
+	RUN_SQL_FILE="$GET_FILE_FROM_URL_REPLY"
+	OUTPUT=`$MYSQL_EXEC $1 2>&1 < $RUN_SQL_FILE`
+	if [ $? -ne 0 ]; then
+		delete_file_if_temp $RUN_SQL_FILE
+		log DEBUG $OUTPUT
+		log ERROR MYSQL can not parse file $2
+		return 1
+	fi
+	if [ ! -z "$OUTPUT" ]; then
+		log DEBUG Output of mysql: "$OUTPUT"
+	fi
+	log INFO File loaded to mysql successfully
+	delete_file_if_temp $RUN_SQL_FILE
+	return 0
+}
+
+USAGE="$USAGE
+
+Function   : mysql_load_csv_from_url
+Description: Load CSV from URL
+Arguments  : DB Name, URL, column names
+Returns    : 0 If successful, 1 otherwise
+"
+mysql_load_csv_from_url() {
+	if [ $# -lt 3 -o $# -gt 4 ]; then
+		return 0
+	fi
+	mysql_check_db_exists $1
+	if [ $? -ne 0 ]; then
+		log ERROR DB $1 does not exists
+		return 1
+	fi
+	if [ ! -z "$4" ]; then
+		MYSQL_LOAD_CSV_TABLENAME="$4"
+	else
+		MYSQL_LOAD_CSV_TABLENAME=`basename $2`
+	fi
+	get_file_from_url $2 /tmp/$MYSQL_LOAD_CSV_TABLENAME
+	if [ $? -ne 0 ]; then
+		log ERROR Can not get file from $2
+		return 1
+	fi
+	CSV_COLUMNS="$3"
+	RUN_CSV_FILE="$GET_FILE_FROM_URL_REPLY"
+	log DEBUG -e dos2unix "$RUN_CSV_FILE"
+	if [ $? -ne 0 ]; then
+		log ERROR dos2unix to "$RUN_CSV_FILE" failed
+		return 1
+	fi
+	OUTPUT=`$MYSQLIMPORT_EXEC $1 --local $RUN_CSV_FILE --column=$CSV_COLUMNS --fields-terminated-by='\t' --delete --lines-terminated-by='\n'`
+	if [ $? -ne 0 ]; then
+		delete_file_if_temp $RUN_SQL_FILE
+		log DEBUG $OUTPUT
+		log ERROR MYSQL can not parse file $2
+		return 1
+	fi
+	if [ ! -z "$OUTPUT" ]; then
+		log DEBUG Output of mysql: "$OUTPUT"
+	fi
+	log INFO File loaded to mysql successfully
+	delete_file_if_temp $RUN_SQL_FILE
+	return 0
+}
+
+USAGE="$USAGE
+
+Function   : mysql_get_db_users
+Description: Get all users for a given db
+Arguments  : DB Name
+Returns    : 0 If successful, 1 otherwise
+Variable   : The variable REPLY will have the list of users
+"
+mysql_get_db_users() {
+	if [ $# -ne 1 ]; then
+		return 0
+	fi
+	mysql_check_db_exists $1
+	if [ $? -ne 0 ]; then
+		log ERROR DB $1 does not exists
+		return 1
+	fi
+	REPLY=`$MYSQL_EXEC mysql -e "select user from db where db='$1'" ` 
+	if [ $? -ne 0 ]; then
+		log ERROR Could not get userse for db $1 - $REPLY
+		return 1
+	fi
+	REPLY=`echo $REPLY | cut -d' ' -f2-`
+	return 0
+}
+
+
+
+USAGE="$USAGE
+
+Function   : mysql_drop_db
+Description: Drop a DB including all users for it
+Arguments  : DB Name
+Returns    : 0 If successful, 1 otherwise
+"
+mysql_drop_db() {
+	if [ $# -ne 1 ]; then
+		return 0
+	fi
+	mysql_check_db_exists $1
+	if [ $? -ne 0 ]; then
+		log INFO No need to drop $1, does not exist
+		return 0
+	fi
+	if mysql_get_db_users $1; then
+		for USER_TO_DROP in $REPLY; do
+			log INFO Dropping user $USER_TO_DROP
+			$MYSQL_EXEC -e "DROP USER $USER_TO_DROP"
+			if [ $? -ne 0 ]; then
+				log ERROR failed to drop user $USER_TO_DROP
+				return 1
+			else
+				log INFO DB user $USER_TO_DROP dropped
+			fi
+		done
+	fi
+	log INFO Dropping DB $1
+	OUTPUT=`$MYSQL_EXEC -e "drop database $1" 2>&1`
+	if [ $? -ne 0 ]; then
+		log DEBUG Error was $OUTPUT
+		log ERROR failed to drop DB $1
+		return 1
+	else
+		log INFO DB $1 Dropped
+	fi
+	return 0
+}
+
+USAGE="$USAGE
+
+Function   : mysql_add_db
+Description: Add a db with a given user and pass
+Arguments  : DB Name, DB User, DB Pass
+Returns    : 0 If successful, 1 otherwise
+"
+mysql_add_db() {
+	if [ $# -ne 3 ]; then
+		return 0
+	fi
+	if [ `echo $2 | wc -c` -gt 16 ]; then
+		log ERROR Mysql user can not be greater than 16 characteres - $2
+		return 1
+	fi
+	mysql_check_db_exists $1
+	if [ $? -eq 0 ]; then
+		log ERROR DB $1 already exists
+		return 1
+	fi
+	log INFO Creating DB $1
+	OUTPUT=`$MYSQL_EXEC -e "create database $1" 2>&1`
+	if [ $? -ne 0 ]; then
+		log DEBUG Error was $OUTPUT
+		log ERROR failed to create DB $1
+		return 1
+	else
+		log INFO DB $1 Created
+	fi
+	log INFO Adding user $2
+	$MYSQL_EXEC -e "GRANT ALL ON $1.* TO '$2'@'%' IDENTIFIED BY '$3'"
+	if [ $? -ne 0 ]; then
+		log ERROR failed to add user $2
+		return 1
+	else
+		log INFO DB user $2 Created
+	fi
+	return 0
+}

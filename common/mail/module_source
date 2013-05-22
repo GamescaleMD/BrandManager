@@ -1,0 +1,92 @@
+
+# Defaults for sending mail:
+
+COMMONMAILFROM="mailer@flowsoft.co.il"
+COMMONMAILSERVER="localhost"
+
+SENDMAIL="$COMMON_BASE/mail/sendEmail"
+
+if [ ! -x $SENDMAIL ]; then
+	echo ERROR: $SENDMAIL does not exist!
+	exit 1
+fi
+
+# Usage:
+# Parameter 1 - Subject
+# Parameter 2 and up - receipients
+# STDIN - message
+
+USAGE="$USAGE
+
+Function   : send_mail
+Description: Send an E-Mail. You must first set the mail server and from 
+             adresss by using set_mailfrom and set_mailserver
+Arguments  : 1 - Subject
+             2 and up - recepients
+Returns    : 0 on success, error code otherwise
+"
+send_mail() {
+	if [ $# -lt 2 ]; then
+		log FATAL Incorrect call to send_mail!
+		return 1
+	fi
+	SUB=$1
+	RECP=""
+	shift
+	while [ "$1" != "" ]; do
+		RECP="$RECP -t $1"
+		shift
+	done
+	log INFO "Sending mail \"$SUB\", Recepients are $RECP"
+	MSG=""
+	#read -d `echo -e "\e"` MSG
+	while read TEMPMSG
+	do
+		MSG="${MSG}\n${TEMPMSG}"
+	done
+	$SENDMAIL -q -f $COMMONMAILFROM $RECP -u "$SUB" -m "$MSG" -s $COMMONMAILSERVER
+	if [ $? -ne 0 ]; then
+		log ERROR Error sending mail!
+		return 1
+	fi
+	log INFO Mail sent successfully
+	return 0
+}
+
+
+USAGE="$USAGE
+
+Function   : set_mailfrom
+Description: Sets the From E-Mail address for the send_mail function
+Arguments  : 1 - The From E-Mail address
+Returns    : 0 on success, error code otherwise
+"
+
+set_mailfrom() {
+	if [ $# -ne 1 ]; then
+		log FATAL Incorrect call to set_mailfrom!
+		return 1
+	fi
+	COMMONMAILFROM=$1
+	log INFO Mail from is set to $COMMONMAILFROM
+	return 0
+}
+
+
+USAGE="$USAGE
+
+Function   : set_mailserver
+Description: Sets the SMTP mail server for the send_mail function
+Arguments  : 1 - hostname of the SMTP server
+Returns    : 0 on success, error code otherwise
+"
+
+set_mailserver() {
+	if [ $# -ne 1 ]; then
+		log FATAL Incorrect call to set_mailserver!
+		return 1
+	fi
+	COMMONMAILSERVER=$1
+	log INFO Mail server is set to $COMMONMAILSERVER
+	return 0
+}

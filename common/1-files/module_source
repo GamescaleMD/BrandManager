@@ -1,0 +1,111 @@
+#!/bin/bash
+# File functions
+# Copyrights Amnon Nessim, Flowsoft LTD. 2007-2008 amnon@flowsoft.co.il
+#
+
+USAGE="$USAGE
+
+Function   : check_files_exist
+Description: Check if the supplied files exist on the file system
+Arguments  : Files to check for
+Returns    : 0 if all files exist, 1 otherwise
+"
+check_files_exist() {
+	if [ $# -lt 1 ]; then
+		return 0
+	fi
+
+	while [ "$1" != "" ]; do
+		if [ ! -r "$1" ]; then
+			log ERROR File $1 does not exist!
+			return 1
+		fi
+		shift
+	done
+	return 0
+}
+
+USAGE="$USAGE
+
+Function   : get_file_from_url
+Description: get a file from a specific url
+Arguments  : URL to get, Destination. If no destination then use mktemp 
+             to set a temporary file.
+Returns    : 0 ok, 1 otherwise. Sets GET_FILE_FROM_URL_REPLY to the output file
+
+"
+
+get_file_from_url() {
+	if [ $# -lt 1 -o $# -gt 2 ]; then
+		log ERROR Incorrect call to get_file_from_url
+		return 1
+	fi
+	# If we don't have a destination, create a temporary file
+	if [ -z "$2" ]; then
+		GET_FILE_FROM_URL_REPLY=`mktemp`
+	else
+		GET_FILE_FROM_URL_REPLY="$2"
+	fi
+
+        # First check if we have http:// or file://
+        METHOD=${1:0:7}
+        case "$METHOD" in 
+                "http://")
+                        log DEBUG -e  wget -nv -O $GET_FILE_FROM_URL_REPLY $1
+                        if [ $? -ne 0 ]; then
+                                log ERROR Failed to get $1 to $GET_FILE_FROM_URL_REPLY
+                                return 1
+                        fi
+                        ;;
+                "file://")
+                        GET_FILE_FROM_URL_TEMP=${1:7:$(( ${#1} - 7))}
+                        check_files_exist $GET_FILE_FROM_URL_TEMP
+                        if [ $? -ne 0 ]; then
+                                log ERROR Can not find $GET_FILE_FROM_URL_TEMP
+                                return 1
+                        fi
+			if [ "$GET_FILE_FROM_URL_TEMP" != "$GET_FILE_FROM_URL_REPLY" ]; then
+				cp $GET_FILE_FROM_URL_TEMP $GET_FILE_FROM_URL_REPLY
+				if [ $? -ne 0 ]; then
+					log ERROR Failed to cp $GET_FILE_FROM_URL_TEMP to $GET_FILE_FROM_URL_REPLY
+					return 1
+				fi
+			fi
+                        ;;
+                *)      log ERROR Incorrect method to get file $METHOD, only file:// or http:// are supported.
+                        return 1
+        esac
+	return 0
+}
+
+
+USAGE="$USAGE
+
+Function   : delete_file_if_temp
+Description: Deleted a given file if its a file in /tmp
+Arguments  : File to check
+Returns    : 0 ok, 1 otherwise
+
+"
+
+delete_file_if_temp() {
+	if [ $# -ne 1 ]; then
+		log ERROR Incorrect call to delete_file_if_temp
+		return 1
+	fi
+	if [ ! -f $1 ]; then
+		log DEBUG File does not exist, can not delete
+		return 0
+	fi
+	echo $1 | grep -q "^/tmp/"
+	if [ $? -eq 0 ]; then
+		log INFO Deleting temporary file $1
+		rm -f $1
+		if [ $? -ne 0 ]; then
+			log WARN Failed to delete temporary file $1
+			return 1
+		fi
+	fi
+	return 0
+	
+}

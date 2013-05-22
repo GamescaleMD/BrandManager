@@ -1,0 +1,21 @@
+#installing required packages
+PACKAGES mysql-server jetty
+
+#create wallet DB
+CREATEDB ${NUMERIC_TAG_WITH_US}${BRAND_NAME}_wallet ${NUMERIC_TAG_WITH_US}wallet
+
+
+# TODO: Get WAR
+
+#run SQL file
+DBLOADSQL ${NUMERIC_TAG_WITH_US}${BRAND_NAME}_wallet file:///${JETTY_DISTRIBUTION_DIR}/web_inf/classes/sql/base.sql
+
+#parse config file
+TEMPLATE JETTY_DISTRIBUTION_DIR}/web_inf/classes/props/props.txt
+
+# TODO: Create virtual host
+
+#add DNS
+ADDDNS ${SVN_TYPE_NAME_PREFIX_DOT}${SVN_TYPE}.${SHORT_HOSTNAME}.${BM_ENV_WITH_DOT}${BRAND_NAME}.${DNS_DOMAIN}
+
+RESTART jetty

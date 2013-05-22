@@ -1,0 +1,43 @@
+# Gameserver
+#Vars:
+#%BRAND_NAME@ - full sitename for the brand
+#%BRAND_NAME@.%FULL_HOSTNAME@ - full sitename for the brand + .dev.hostname
+#
+# Admin (unsecured area51)
+<VirtualHost *:80>
+        ServerName %NUMERIC_TAG_WITH_DOT@admin.%BRAND_NAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@qa.admin.%BRAND_NAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@stage.admin.%BRAND_NAME@
+        ServerAlias *.%NUMERIC_TAG_WITH_DOT@dev.admin.%BRAND_NAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@admin.%BRAND_NAME@.%FULL_HOSTNAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@qa.admin.%BRAND_NAME@.%FULL_HOSTNAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@stage.admin.%BRAND_NAME@.%FULL_HOSTNAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@int.games1.%BRAND_NAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@int.admin.%BRAND_NAME@
+        ServerAlias *.%NUMERIC_TAG_WITH_DOT@dev.admin.%BRAND_NAME@.%FULL_HOSTNAME@
+        setEnv SYSTEM_ENVIRONMENT %BM_ENV@
+
+        DocumentRoot /var/www/%BRAND_NAME@/%NUMERIC_TAG_WITH_DOT@boui
+
+</VirtualHost>
+
+# Admin SSL (seperate because of /gs-admin/ only)
+<VirtualHost *:443>
+        ServerName %NUMERIC_TAG_WITH_DOT@admin.%BRAND_NAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@qa.admin.%BRAND_NAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@stage.admin.%BRAND_NAME@
+        ServerAlias *.%NUMERIC_TAG_WITH_DOT@dev.admin.%BRAND_NAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@admin.%BRAND_NAME@.%FULL_HOSTNAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@qa.admin.%BRAND_NAME@.%FULL_HOSTNAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@stage.admin.%BRAND_NAME@.%FULL_HOSTNAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@int.games1.%BRAND_NAME@
+        ServerAlias %NUMERIC_TAG_WITH_DOT@int.admin.%BRAND_NAME@
+        ServerAlias *.%NUMERIC_TAG_WITH_DOT@dev.admin.%BRAND_NAME@.%FULL_HOSTNAME@
+        setEnv SYSTEM_ENVIRONMENT %BM_ENV@
+
+        DocumentRoot /var/www/%BRAND_NAME@/%NUMERIC_TAG_WITH_DOT@boui
+        SSLEngine On
+        SSLCertificateFile /var/www/ssl.crt
+        SSLCertificateKeyFile /var/www/ssl.key
+
+</VirtualHost>

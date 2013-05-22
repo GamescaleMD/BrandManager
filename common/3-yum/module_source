@@ -1,0 +1,62 @@
+# Yum functions
+# Copyrights Amnon Nessim, Flowsoft LTD. 2007-2008 amnon@flowsoft.co.il
+#
+
+USAGE="$USAGE
+
+Function   : yum_ensure_package_installed
+Description: Check if the specified packages are installed and if not, 
+             install them
+Arguments  : Packages to check for
+Returns    : 0 if all packages installed successfully, 1 otherwise
+"
+yum_ensure_package_installed() {
+	if [ $# -lt 1 ]; then
+		return 0
+	fi
+	PACKS_TO_INSTALL=""
+
+	while [ "$1" != "" ]; do
+		if [ `lsb_release -si` == "Ubuntu" ]; then
+			OUTPUT=`dpkg -s $1`
+		else
+			OUTPUT=`rpm -q $1`
+		fi
+		if [ $? -eq 0 ]; then
+			log DEBUG  Package $OUTPUT already installed
+		else
+			if [ `lsb_release -si` == "Ubuntu" ]; then
+				apt-cache show $1 > /dev/null 2>&1
+			else
+				yum list $1 > /dev/null 2>&1
+			fi
+			if [ $? -eq 0 ]; then
+				PACKS_TO_INSTALL="$PACKS_TO_INSTALL $1"
+				log INFO Package $1 added to install list
+			else
+				log ERROR Package $1 not available through yum
+				return 1
+			fi
+		fi
+		shift
+	done
+	if [ "$PACKS_TO_INSTALL" == "" ]; then
+		log DEBUG No packs to install
+	else
+		log INFO installing $PACKS_TO_INSTALL
+		if [ `lsb_release -si` == "Ubuntu" ]; then
+			log DEBUG -e apt-get -y install $PACKS_TO_INSTALL 
+		else
+			log DEBUG -e yum -y install $PACKS_TO_INSTALL 
+		fi
+		if [ $? -eq 0 ]; then
+			log INFO Pack $PACKS_TO_INSTALL installed
+			return 0
+		else
+			log ERROR Failed to install $PACKS_TO_INSTALL
+			return 1
+		fi
+	fi
+
+	return 0
+}

@@ -1,0 +1,21 @@
+<VirtualHost *:80>
+	# Tag##/brunch##/trunk.computername.brand.bet444.com 
+	ServerName %SVN_TYPE_NAME_PREFIX_US@%SVN_TYPE@.%SHORT_HOSTNAME@.%BM_ENV_WITH_DOT@%BRAND_NAME@.%DNS_DOMAIN@
+	DocumentRoot %WWW_DISTRIBUTION_DIR@/%BM_COMP@
+	SetEnv SYSTEM_ENVIRONMENT %BM_ENV@
+</VirtualHost>
+
+<VirtualHost *:443>
+	ServerName %SVN_TYPE_NAME_PREFIX_US@%SVN_TYPE@.%SHORT_HOSTNAME@.%BM_ENV_WITH_DOT@%BRAND_NAME@.%DNS_DOMAIN@
+	DocumentRoot %WWW_DISTRIBUTION_DIR@/%BM_COMP@
+	SetEnv SYSTEM_ENVIRONMENT %BM_ENV@
+
+
+        SSLEngine on        
+	SSLCipherSuite  ALL:!ADH:!EXPORT56:RC4+RSA:+HIGH:+MEDIUM:+LOW:+SSLv2:+EXP:+eNULL        
+	SSLCertificateFile /etc/ssl/certificates/domain.com.crt        
+	SSLCertificateKeyFile /etc/ssl/certificates/domain.com.key        
+	SSLCACertificateFile /etc/ssl/intermediate/gd_bundle.crt        
+	SetEnvIf User-Agent ".*MSIE.*" nokeepalive ssl-unclean-shutdown downgrade-1.0 force-response-1.0
+</VirtualHost>
+
